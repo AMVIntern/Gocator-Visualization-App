@@ -1,0 +1,26 @@
+# Virtual environment
+venv_gocator/
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Logs
+*.log
+*.log.*
+
+# Generated / scan data (remove these lines if you want them tracked)
+Gocator_Bottom_Image/
+Gocator_Bottom_Result/
+Gocator_Top_Image/
+Gocator_Top_Result/
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
