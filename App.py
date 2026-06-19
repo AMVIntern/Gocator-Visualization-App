@@ -572,10 +572,10 @@ class MonitorApp:
         return round(100 * self.assured_pallets / self.total_pallets)
 
     def _update_metrics_display(self):
-        """Refresh the Total / Assured counter shown in the verdict banner."""
+        """Refresh the pallet counters shown in the verdict banner."""
         self.metrics_lbl.config(
-            text=f"Total: {self.total_pallets}\n"
-                 f"Assured: {self.assured_pallets} ({self.assured_percent()}%)")
+            text=f"Total Pallets Count: {self.total_pallets}\n"
+                 f"Total Assured Count: {self.assured_pallets} ({self.assured_percent()}%)")
 
     def on_close(self):
         try:
