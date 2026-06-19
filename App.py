@@ -328,7 +328,7 @@ class MonitorApp:
 
         # Per-shift counter, shown bottom-right inside the verdict banner.
         self.metrics_lbl = tk.Label(self.status_lbl, text="", justify="right",
-                                    font=("Segoe UI", 20, "bold"),
+                                    font=("Segoe UI", 14, "bold"),
                                     bg="#0b1220", fg="white")
         self.metrics_lbl.place(relx=1.0, rely=1.0, x=-26, y=-14, anchor="se")
 
