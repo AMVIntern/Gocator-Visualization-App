@@ -575,7 +575,7 @@ class MonitorApp:
         """Refresh the pallet counters shown in the verdict banner."""
         self.metrics_lbl.config(
             text=f"Total Pallets Count: {self.total_pallets}\n"
-                 f"Total Assured Count: {self.assured_pallets} ({self.assured_percent()}%)")
+                 f"Potential Assured Count: {self.assured_pallets} ({self.assured_percent()}%)")
 
     def on_close(self):
         try:
