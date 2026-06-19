@@ -13,6 +13,9 @@ __pycache__/
 *.log
 *.log.*
 
+# Runtime shift-counter state
+shift_state.json
+
 # Generated / scan data (remove these lines if you want them tracked)
 Gocator_Bottom_Image/
 Gocator_Bottom_Result/
