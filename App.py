@@ -552,9 +552,10 @@ class MonitorApp:
         if assured:
             self.assured_pallets += 1
 
-        log.info("Combined verdict: top=%s bottom=%s -> %s | "
+        log.info("Combined verdict: top=%s bottom=%s -> %s | %s | "
                  "Total: %d  Assured: %d (%d%%)",
                  top, bottom, "Assured" if assured else "Standard",
+                 self.active_shift,
                  self.total_pallets, self.assured_pallets, self.assured_percent())
 
         color = C_ASSURED if assured else C_STANDARD
