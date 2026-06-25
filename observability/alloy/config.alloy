@@ -3,29 +3,28 @@
 //
 // One agent per Windows PC. Ships:
 //   - monitor.log              -> Grafana Cloud Loki  (logs, label site=<SITE_ID>)
-//   - shift_state.json         -> Prometheus gauges   (total/assured/percent/shift)
 //   - windows_exporter "up"    -> Prometheus          (heartbeat / site online)
 //
-// No changes to App.py are required. Alloy only READS the two output files.
+// No changes to App.py are required. Alloy only READS the log file.
 //
 // Per-site values come from machine environment variables (set by the installer):
-//   SITE_ID            e.g. auomatally        (lowercase, no spaces — used as a label value)
-//   SITE_NAME          e.g. Auomatally        (human readable)
+//   SITE_ID            e.g. derimut           (lowercase, no spaces — used as a label value)
+//   SITE_NAME          e.g. Derimut           (human readable)
+//   STATE              e.g. Sydney            (state/region grouping for Grafana variable)
 //   GCLOUD_LOKI_URL    https://logs-prod-XXX.grafana.net/loki/api/v1/push
 //   GCLOUD_LOKI_USER   numeric Loki user id
 //   GCLOUD_PROM_URL    https://prometheus-prod-XXX.grafana.net/api/prom/push
 //   GCLOUD_PROM_USER   numeric Prometheus user id
 //   GCLOUD_API_TOKEN   Grafana Cloud Access Policy token (used for BOTH endpoints)
 //   GOCATOR_LOG_PATH   full path to monitor.log
-//   GOCATOR_STATE_PATH full path to shift_state.json
 // ============================================================================
 
-// ---- Reusable constants ----------------------------------------------------
 local.file_match "logs" {
   path_targets = [{
     __path__   = sys.env("GOCATOR_LOG_PATH"),
     site       = sys.env("SITE_ID"),
     site_name  = sys.env("SITE_NAME"),
+    state      = sys.env("STATE"),
     app        = "gocator",
     job        = "gocator/monitor",
   }]
@@ -47,14 +46,6 @@ loki.process "monitor_log" {
   stage.labels {
     values = { level = "" }
   }
-  // Extract state and site_name from [Brisbane: Redbank] in the log message.
-  // state = "Brisbane", site_name = "Redbank" — used as Loki labels for Grafana variables.
-  stage.regex {
-    expression = "\\[(?P<state>[^:]+): (?P<site_name>[^\\]]+)\\]"
-  }
-  stage.labels {
-    values = { state = "", site_name = "" }
-  }
   forward_to = [loki.write.grafana_cloud.receiver]
 }
 
@@ -69,6 +60,7 @@ loki.write "grafana_cloud" {
   external_labels = {
     site      = sys.env("SITE_ID"),
     site_name = sys.env("SITE_NAME"),
+    state     = sys.env("STATE"),
   }
 }
 
@@ -81,8 +73,6 @@ prometheus.exporter.windows "host" {
 
 // ===========================================================================
 // 3) Scrape windows_exporter and remote_write to Grafana Cloud Prometheus.
-//    Shift-counter metrics (total/assured/%) are derived from Loki logs via
-//    LogQL queries — no separate metrics exporter needed.
 // ===========================================================================
 prometheus.scrape "windows" {
   targets    = prometheus.exporter.windows.host.targets
@@ -91,7 +81,7 @@ prometheus.scrape "windows" {
   job_name   = "windows"
 }
 
-// Attach site / site_name to every metric.
+// Attach site / site_name / state to every metric.
 prometheus.relabel "add_site" {
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
   rule {
@@ -101,6 +91,10 @@ prometheus.relabel "add_site" {
   rule {
     target_label = "site_name"
     replacement  = sys.env("SITE_NAME")
+  }
+  rule {
+    target_label = "state"
+    replacement  = sys.env("STATE")
   }
 }
 

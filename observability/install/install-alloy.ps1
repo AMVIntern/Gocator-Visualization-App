@@ -12,7 +12,7 @@
    .\install-alloy.ps1
 
  Before running: edit config.env at the repo root — set SITE_ID, SITE_NAME,
- and GCLOUD_* values for this specific PC.
+ STATE, and GCLOUD_* values for this specific PC.
 ================================================================================
 #>
 
@@ -37,6 +37,7 @@ foreach ($line in Get-Content $ConfigPath) {
 
 $SITE_ID            = $cfg["SITE_ID"]
 $SITE_NAME          = $cfg["SITE_NAME"]
+$STATE              = $cfg["STATE"]
 $GCLOUD_LOKI_URL    = $cfg["GCLOUD_LOKI_URL"]
 $GCLOUD_LOKI_USER   = $cfg["GCLOUD_LOKI_USER"]
 $GCLOUD_PROM_URL    = $cfg["GCLOUD_PROM_URL"]
@@ -45,7 +46,7 @@ $GCLOUD_API_TOKEN   = $cfg["GCLOUD_API_TOKEN"]
 $GOCATOR_LOG_PATH   = $cfg["LOG_PATH"]
 $GOCATOR_STATE_PATH = $cfg["STATE_PATH"]
 
-$required = @("SITE_ID","SITE_NAME","GCLOUD_LOKI_URL","GCLOUD_LOKI_USER",
+$required = @("SITE_ID","SITE_NAME","STATE","GCLOUD_LOKI_URL","GCLOUD_LOKI_USER",
               "GCLOUD_PROM_URL","GCLOUD_PROM_USER","GCLOUD_API_TOKEN","LOG_PATH","STATE_PATH")
 foreach ($k in $required) {
     if (-not $cfg[$k]) { Write-Error "config.env is missing: $k"; exit 1 }
@@ -60,6 +61,7 @@ function Set-MachineEnv($name, $value) {
 Write-Host "[1/4] Setting machine environment variables..." -ForegroundColor Cyan
 Set-MachineEnv "SITE_ID"            $SITE_ID
 Set-MachineEnv "SITE_NAME"          $SITE_NAME
+Set-MachineEnv "STATE"              $STATE
 Set-MachineEnv "GCLOUD_LOKI_URL"    $GCLOUD_LOKI_URL
 Set-MachineEnv "GCLOUD_LOKI_USER"   $GCLOUD_LOKI_USER
 Set-MachineEnv "GCLOUD_PROM_URL"    $GCLOUD_PROM_URL
