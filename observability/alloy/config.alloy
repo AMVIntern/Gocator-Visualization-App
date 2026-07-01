@@ -3,13 +3,14 @@
 //
 // One agent per Windows PC. Ships:
 //   - monitor.log              -> Grafana Cloud Loki  (logs, label site=<SITE_ID>)
-//   - windows_exporter "up"    -> Prometheus          (heartbeat / site online)
+//   - Windows Event Logs       -> Grafana Cloud Loki  (Windows Application + System logs)
+//   - windows_exporter metrics -> Prometheus          (heartbeat / site online / PC health)
 //
 // No changes to App.py are required. Alloy only READS the log file.
 //
 // Per-site values come from machine environment variables (set by the installer):
-//   SITE_ID            e.g. derimut           (lowercase, no spaces — used as a label value)
-//   SITE_NAME          e.g. Derimut           (human readable)
+//   SITE_ID            e.g. derrimut          (lowercase, no spaces — used as a label value)
+//   SITE_NAME          e.g. Derrimut          (human readable)
 //   STATE              e.g. Sydney            (state/region grouping for Grafana variable)
 //   GCLOUD_LOKI_URL    https://logs-prod-XXX.grafana.net/loki/api/v1/push
 //   GCLOUD_LOKI_USER   numeric Loki user id
@@ -19,6 +20,9 @@
 //   GOCATOR_LOG_PATH   full path to monitor.log
 // ============================================================================
 
+// ===========================================================================
+// 1) Gocator app logs -> Grafana Cloud Loki
+// ===========================================================================
 local.file_match "logs" {
   path_targets = [{
     __path__   = sys.env("GOCATOR_LOG_PATH"),
@@ -30,16 +34,12 @@ local.file_match "logs" {
   }]
 }
 
-// ===========================================================================
-// 1) LOGS  -> Grafana Cloud Loki
-// ===========================================================================
 loki.source.file "monitor_log" {
   targets    = local.file_match.logs.targets
   forward_to = [loki.process.monitor_log.receiver]
 }
 
 loki.process "monitor_log" {
-  // Extract log level as a label so |level="ERROR" works as a fast filter.
   stage.regex {
     expression = "^\\S+ \\S+ (?P<level>\\w+) "
   }
@@ -65,25 +65,89 @@ loki.write "grafana_cloud" {
 }
 
 // ===========================================================================
-// 2) HEARTBEAT / host health -> windows_exporter
+// 2) Windows Event Logs -> Grafana Cloud Loki
 // ===========================================================================
-prometheus.exporter.windows "host" {
-  enabled_collectors = ["cpu", "logical_disk", "memory", "net", "system"]
+loki.source.windowsevent "app_logs" {
+  locale                 = 1033
+  eventlog_name          = "Application"
+  bookmark_path          = "C:\\ProgramData\\GrafanaLabs\\Alloy\\bookmarks-app.xml"
+  poll_interval          = "0s"
+  use_incoming_timestamp = true
+  forward_to             = [loki.relabel.windows_app.receiver]
+  labels                 = {
+    instance = constants.hostname,
+    job      = "integrations/windows_exporter",
+  }
+}
+
+loki.relabel "windows_app" {
+  forward_to = [loki.process.windows_app.receiver]
+  rule {
+    source_labels = ["computer"]
+    target_label  = "agent_hostname"
+  }
+}
+
+loki.process "windows_app" {
+  forward_to = [loki.write.grafana_cloud.receiver]
+  stage.json {
+    expressions = { level = "levelText", source = "source" }
+  }
+  stage.labels {
+    values = { level = "", source = "" }
+  }
+}
+
+loki.source.windowsevent "sys_logs" {
+  locale                 = 1033
+  eventlog_name          = "System"
+  bookmark_path          = "C:\\ProgramData\\GrafanaLabs\\Alloy\\bookmarks-sys.xml"
+  poll_interval          = "0s"
+  use_incoming_timestamp = true
+  forward_to             = [loki.relabel.windows_sys.receiver]
+  labels                 = {
+    instance = constants.hostname,
+    job      = "integrations/windows_exporter",
+  }
+}
+
+loki.relabel "windows_sys" {
+  forward_to = [loki.process.windows_sys.receiver]
+  rule {
+    source_labels = ["computer"]
+    target_label  = "agent_hostname"
+  }
+}
+
+loki.process "windows_sys" {
+  forward_to = [loki.write.grafana_cloud.receiver]
+  stage.json {
+    expressions = { level = "levelText", source = "source" }
+  }
+  stage.labels {
+    values = { level = "", source = "" }
+  }
 }
 
 // ===========================================================================
-// 3) Scrape windows_exporter and remote_write to Grafana Cloud Prometheus.
+// 3) Windows metrics -> Grafana Cloud Prometheus
 // ===========================================================================
-prometheus.scrape "windows" {
-  targets    = prometheus.exporter.windows.host.targets
-  forward_to = [prometheus.relabel.add_site.receiver]
-  scrape_interval = "30s"
-  job_name   = "windows"
+prometheus.exporter.windows "integrations_windows_exporter" {
+  enabled_collectors = ["cpu", "memory", "pagefile", "logical_disk",
+                        "net", "os", "service", "system", "time", "diskdrive"]
 }
 
-// Attach site / site_name / state to every metric.
-prometheus.relabel "add_site" {
-  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+discovery.relabel "integrations_windows_exporter" {
+  targets = prometheus.exporter.windows.integrations_windows_exporter.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/windows_exporter"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = constants.hostname
+  }
   rule {
     target_label = "site"
     replacement  = sys.env("SITE_ID")
@@ -96,6 +160,13 @@ prometheus.relabel "add_site" {
     target_label = "state"
     replacement  = sys.env("STATE")
   }
+}
+
+prometheus.scrape "integrations_windows_exporter" {
+  targets         = discovery.relabel.integrations_windows_exporter.output
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "30s"
+  job_name        = "integrations/windows_exporter"
 }
 
 prometheus.remote_write "grafana_cloud" {
