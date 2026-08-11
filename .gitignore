@@ -24,6 +24,9 @@ Gocator_Bottom_Result/
 Gocator_Top_Image/
 Gocator_Top_Result/
 
+# Config / credentials (never commit)
+config.env
+
 # OS / editor
 Thumbs.db
 .DS_Store
