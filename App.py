@@ -25,10 +25,10 @@ FOLDER_CSV_L = os.environ["FOLDER_CSV_TOP"]
 FOLDER_CSV_R = os.environ["FOLDER_CSV_BOTTOM"]
 SUPPORTED_IMGS = (".png", ".jpg", ".jpeg", ".bmp")
 
-# Once an image has been displayed it is also copied into
-# ARCHIVE_ROOT/<date>/<shift>/<Top|Bottom>/ -- the original stays in the
-# watched folder untouched; this just gives each shift's images their own
-# organized copy on disk.
+# Once an image has been displayed it is moved into
+# ARCHIVE_ROOT/<date>/<shift>/<Top|Bottom>/ so each shift's images are
+# organized on disk. Retention of the archive is handled by the external
+# auto-delete job, not by this app.
 ARCHIVE_ROOT = os.environ["ARCHIVE_ROOT"]
 
 APP_TITLE = "CHEP PQAS"
@@ -170,12 +170,11 @@ def file_timestamp(path):
 
 
 def archive_image(path, side):
-    """Copy a displayed image into ARCHIVE_ROOT/<date>/<shift>/<Top|Bottom>/.
+    """Move a displayed image into ARCHIVE_ROOT/<date>/<shift>/<Top|Bottom>/.
 
-    The original in the watched folder is left in place -- this only writes
-    an organized copy. Never raises -- archiving failures are logged and
-    otherwise ignored, since losing the archive copy is far less important
-    than keeping the live monitor running.
+    Never raises -- archiving failures are logged and otherwise ignored
+    (the image just stays in the watched folder), since keeping the live
+    monitor running matters more than archiving.
     """
     side_label = "Top" if side == "left" else "Bottom"
     dest_dir = Path(ARCHIVE_ROOT) / datetime.now().strftime("%Y-%m-%d") / current_shift() / side_label
@@ -186,7 +185,7 @@ def archive_image(path, side):
             # Extremely unlikely (source filenames embed a timestamp), but
             # never silently clobber a previously archived image.
             dest = dest_dir / f"{dest.stem}_{datetime.now().strftime('%H%M%S%f')}{dest.suffix}"
-        shutil.copy2(path, dest)
+        shutil.move(path, dest)
         log.info("Archived %s image -> %s", side, dest)
     except OSError as e:
         log.error("Could not archive %s image %s: %s", side, path, e)
@@ -453,8 +452,8 @@ class MonitorApp:
         else:
             self.tile_right.set_image(img)
 
-        # Image is on screen and fully decoded -- safe to copy into the
-        # archive now (original stays in the watched folder).
+        # Image is on screen and fully decoded (img.load() above), so the
+        # file is no longer needed -- safe to move it into the archive.
         archive_image(path, side)
 
     # ----------------------------
